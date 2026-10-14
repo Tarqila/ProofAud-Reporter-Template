@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<!--
+  ═══════════════════════════════════════════════════════════════════
+  PROOF AUDIT — Smart Contract Security Assessment Report Template
+  ───────────────────────────────────────────────────────────────────
+  用法说明：
+  · 全文中的 {{双花括号}} 为占位符，替换为你的项目内容即可。
+  · 每页是一个 <section class="page">，A4 尺寸（210mm × 297mm）。
+  · 浏览器打开后 Ctrl/Cmd+P 即可导出 PDF（已内置 @page A4 规则）。
+  · 删除多余页面或复制 .finding 区块可增加/减少 Finding 详情页。
+  · 右下角按钮切换「暗色 · 海上明月」/「亮色 · 海上太阳」主题，
+    切换状态保存在本机；打印时输出当前主题。
+  · 语言由 report.json 的 lang 字段控制：zh（默认，全部版式文字中文）
+    / en（版式文字保留英文）。排版（行距/页边距）已内置，勿追加覆盖样式。
+  · 内容中禁止出现「亮色版/暗色版」字样——主题只由 theme 字段与文件名表达。
+  · 配色变量全部集中在 :root，一处改动全站生效。
+  ═══════════════════════════════════════════════════════════════════
+-->
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proof Audit — Security Assessment Report Template</title>
+<style>
+/* ═══ Design tokens ═══════════════════════════════════════════
+   暗色主题 = 海上明月 · 亮色主题 = 海上太阳                     */
+:root{
+  /* ── dark theme (default) ── */
+  --cover-bg:#0a0b0d;        /* 封面底：深海夜               */
+  --paper:#141519;           /* 内页底：哑光炭灰，不发亮     */
+  --ink:#eceef1;             /* 标题文字                     */
+  --body:#c3c8d0;            /* 正文文字                     */
+  --gray-1:#9aa1ab;          /* 次级文字                     */
+  --gray-2:#6b7280;          /* 弱提示文字                   */
+  --gray-3:rgba(255,255,255,.14);  /* 细分隔线             */
+  --gray-4:rgba(255,255,255,.045); /* 表格隔行/浅底        */
+  --code-bg:#0a0b0d;         /* 代码块底                     */
+  --code-fg:#e8e9eb;
+  --callout-bg:rgba(255,255,255,.05);
+  --disc:#e9edf3;            /* 封面天体：月                 */
+  --cover-ink:#eceef1;
+  --cover-sub:#8b929d;
+  --accent:#ff1841;
+  --crit:#ff1841; --high:#ff6b35; --med:#f5b301; --low:#2fa97c; --info:#8b929d;
+  --sans:"Helvetica Neue",Helvetica,"Segoe UI",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+:root[data-theme="light"]{
+  /* ── light theme ── */
+  --cover-bg:#f4f0e7;        /* 封面底：暖沙色，非纯白       */
+  --paper:#f9f6f0;           /* 内页底：暖纸白，不刺眼       */
+  --ink:#1a1b1e;
+  --body:#3d4046;
+  --gray-1:#6b7280;
+  --gray-2:#9aa1ab;
+  --gray-3:#e4dfd4;          /* 暖调分隔线                   */
+  --gray-4:#f0ece3;          /* 暖调隔行                     */
+  --code-bg:#1a1b1e;         /* 亮色主题保留深色代码块       */
+  --code-fg:#e8e9eb;
+  --callout-bg:#f0ece3;
+  --disc:#e8930c;            /* 封面天体：日                 */
+  --cover-ink:#1a1b1e;
+  --cover-sub:#8b8578;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{background:#3a3a3e}
+body{
+  font-family:var(--sans);
+  color:var(--body);
+  background:#3a3a3e;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* ── A4 page canvas ────────────────────────────────────────── */
+.page{
+  width:210mm;
+  height:297mm;
+  background:var(--paper);
+  margin:24px auto;
+  position:relative;
+  overflow:hidden;
+  box-shadow:0 2px 24px rgba(0,0,0,.45);
+  padding:26mm 20mm 22mm;
+  transition:background .4s ease;
+}
+@media print{
+  @page{size:A4;margin:0}
+  html,body{background:#fff}
+  .page{margin:0;box-shadow:none;page-break-after:always}
+  .theme-toggle{display:none !important}
+}
+
+/* ── Shared atoms ──────────────────────────────────────────── */
+.chip{
+  display:inline-block;
+  font-size:8.5pt;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:#fff;
+  padding:2.5px 9px 3px;
+  border-radius:2px;
+  line-height:1.4;
+}
+.chip.crit{background:var(--crit)}
+.chip.high{background:var(--high)}
+.chip.med {background:var(--med);color:#3a2c00}
+.chip.low {background:var(--low)}
+.chip.info{background:var(--info)}
+.chip.ghost{background:transparent;color:var(--gray-1);border:1px solid var(--gray-3)}
+
+.tag-resolved{background:transparent;color:var(--low);border:1px solid var(--low)}
+
+.mono{font-family:var(--mono);font-size:9pt}
+
+.kicker{
+  font-size:9pt;
+  letter-spacing:.32em;
+  text-transform:uppercase;
+  color:var(--gray-1);
+  font-weight:600;
+}
+
+.section-num{
+  font-size:9pt;
+  font-weight:700;
+  color:var(--accent);
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  margin-bottom:14px;
+}
+h2.section-title{
+  font-size:22pt;
+  font-weight:700;
+  letter-spacing:-.02em;
+  line-height:1.15;
+  margin-bottom:24px;
+  color:var(--ink);
+}
+
+/* running header / footer on content pages */
+.runhead{
+  position:absolute;top:10mm;left:20mm;right:20mm;
+  display:flex;justify-content:space-between;align-items:baseline;white-space:nowrap;
+  font-size:7.5pt;letter-spacing:.14em;text-transform:uppercase;color:var(--gray-2);
+}
+.runhead .brand{font-weight:800;color:var(--ink);letter-spacing:.2em}
+.runhead .brand em{color:var(--accent);font-style:normal}
+.runhead .htip{font-size:6pt;letter-spacing:.06em;color:var(--gray-2);text-transform:none;margin-left:14px}
+.runhead .htip .mono{font-size:6pt;color:var(--gray-1);letter-spacing:.02em}
+.runfoot{
+  position:absolute;bottom:9mm;left:20mm;right:20mm;
+  border-top:1px solid var(--gray-3);
+  padding-top:8px;
+  display:flex;justify-content:space-between;
+  font-size:7.5pt;color:var(--gray-2);letter-spacing:.05em;
+}
+.runfoot .mono{font-size:7.5pt;color:var(--gray-1)}
+
+/* ── PAGE 1 · Cover ────────────────────────────────────────── */
+.cover{
+  background:var(--cover-bg);
+  color:var(--cover-ink);
+  padding:16mm 16mm 0;
+}
+.cover .wordmark{
+  position:absolute;top:14mm;left:16mm;
+  display:flex;align-items:center;gap:10px;
+}
+.cover .wordmark .mark{width:26px;height:26px;flex:none}
+.cover .wordmark .name{
+  font-size:13pt;font-weight:800;letter-spacing:.34em;text-transform:uppercase;
+  color:var(--cover-ink);
+}
+.cover .wordmark .name em{color:var(--accent);font-style:normal}
+.cover .meta-top{
+  position:absolute;top:16mm;right:16mm;
+  font-size:8pt;letter-spacing:.22em;text-transform:uppercase;color:var(--cover-sub);
+  text-align:right;line-height:1.9;
+}
+.cover .meta-top b{color:var(--accent);font-weight:700}
+
+.cover .rule{
+  width:2px;height:64px;background:var(--accent);
+  position:absolute;left:16mm;top:96mm;
+}
+.cover .titleblock{position:absolute;left:16mm;top:96mm;right:16mm;padding-left:26px}
+.cover .label{
+  font-size:12pt;color:var(--cover-sub);font-weight:400;letter-spacing:.02em;
+  margin-bottom:14px;
+}
+.cover h1{
+  font-size:40pt;line-height:1.12;font-weight:800;letter-spacing:-.025em;
+  margin-bottom:6px;color:var(--cover-ink);
+}
+.cover .vers{
+  font-size:14.5pt;font-weight:600;color:var(--cover-sub);
+  letter-spacing:.03em;line-height:2.1;
+  margin:16px 0 34px;
+}
+.cover .sub{
+  font-size:9.5pt;color:var(--cover-sub);letter-spacing:.04em;line-height:1.9;
+}
+.cover .sub b{color:var(--cover-ink);font-weight:600}
+
+.cover .prep{
+  position:absolute;left:16mm;bottom:46mm;
+  display:flex;gap:40px;justify-content:space-between;
+  font-size:8.5pt;line-height:1.75;color:var(--cover-sub);
+  width:calc(100% - 32mm);
+}
+.cover .prep .k{font-size:7.5pt;letter-spacing:.24em;text-transform:uppercase;color:var(--cover-sub);margin-bottom:2px}
+.cover .prep .v{color:var(--cover-ink);font-weight:600;font-size:9.5pt}
+.cover .prep .mono{color:var(--cover-sub);font-size:8pt}
+
+/* ── 封面底部的「海」：一条页脚式地平线 + 两条极淡波线 ──
+   不单独配色：全部使用 --cover-ink 低透明度，与封面融为一体。
+   两主题共用同一几何，仅底色与文字色不同。             */
+.cover-art{
+  position:absolute;
+  left:50%;bottom:0;
+  transform:translateX(-50%);
+  width:210mm;height:32mm;
+  pointer-events:none;
+}
+.cover .confidential{
+  position:absolute;right:16mm;bottom:12mm;z-index:2;
+  font-size:7.5pt;letter-spacing:.26em;text-transform:uppercase;color:var(--cover-sub);
+}
+.cover .confidential b{color:var(--accent)}
+
+/* ── PAGE 2 · Document control + TOC ──────────────────────── */
+.docctl{margin-bottom:42px}
+table.meta{width:100%;border-collapse:collapse;font-size:9.5pt}
+table.meta td{padding:13px 4px;border-bottom:1px solid var(--gray-3);vertical-align:top}
+table.meta td.k{width:34%;color:var(--gray-1);font-size:8pt;letter-spacing:.16em;text-transform:uppercase;padding-top:15px}
+table.meta td.v{font-weight:600;color:var(--ink)}
+table.meta td.v span.mono{display:block;margin-top:6px;font-weight:400;color:var(--gray-1)}
+
+.toc{margin-top:14px}
+.toc .row{display:flex;align-items:baseline;gap:8px;padding:14px 0;font-size:11pt}
+.toc .row .n{color:var(--gray-2);width:34px;font-family:var(--mono);font-size:9.5pt}
+.toc .row .t{font-weight:600;color:var(--ink)}
+.toc .row .dots{flex:1;border-bottom:1px dotted var(--gray-2);transform:translateY(-3px)}
+.toc .row .p{font-family:var(--mono);font-size:9.5pt;color:var(--gray-1)}
+.toc .row.sub .t{font-weight:400;color:var(--gray-1);font-size:10pt;padding-left:34px}
+/* compact TOC for reports with 10–14 findings (fits page 2 alongside doc control) */
+.toc.compact .row{padding:8px 0;font-size:10.5pt}
+.toc.compact .row .n{font-size:9pt}
+.toc.compact .row .p{font-size:9pt}
+.toc.compact .row.sub .t{font-size:9.5pt}
+
+/* ── PAGE 3 · Executive summary ───────────────────────────── */
+.exstats{display:flex;border:1px solid var(--gray-3);margin:30px 0 34px}
+.exstats .cell{flex:1;padding:22px 24px 20px;border-right:1px solid var(--gray-3)}
+.exstats .cell:last-child{border-right:none}
+.exstats .num{font-size:30pt;font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--ink)}
+.exstats .lbl{font-size:8pt;letter-spacing:.18em;text-transform:uppercase;color:var(--gray-1);margin-top:10px}
+
+p.body{font-size:10.5pt;line-height:1.95;color:var(--body);margin-bottom:16px;max-width:165mm}
+p.body b{font-weight:700;color:var(--ink)}
+
+.callout{
+  border-left:2px solid var(--accent);
+  background:var(--callout-bg);
+  padding:16px 20px;
+  font-size:10pt;line-height:1.95;color:var(--body);
+  margin:26px 0;
+}
+.callout .ct{font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:8pt;color:var(--accent);display:block;margin-bottom:8px}
+
+/* ── PAGE 4 · Scope & methodology ─────────────────────────── */
+.scope-table{width:100%;border-collapse:collapse;font-size:9.5pt;margin:8px 0 30px}
+.scope-table th{
+  text-align:left;font-size:8pt;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gray-1);font-weight:700;padding:10px;border-bottom:1.5px solid var(--ink);
+}
+.scope-table td{padding:11px 10px;border-bottom:1px solid var(--gray-3);vertical-align:top;color:var(--body)}
+.scope-table tr:nth-child(even) td{background:var(--gray-4)}
+.scope-table td.mono{font-size:8pt;color:var(--gray-1)}
+
+h3.block{
+  font-size:10pt;font-weight:800;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink);margin:30px 0 14px;display:flex;align-items:center;gap:10px;
+}
+h3.block::before{content:"";width:14px;height:2px;background:var(--accent)}
+
+ul.method{list-style:none;font-size:10pt;line-height:2.25;color:var(--body)}
+ul.method li{padding-left:20px;position:relative;margin-bottom:4px}
+ul.method li::before{content:"—";position:absolute;left:0;color:var(--accent);font-weight:700}
+
+.sev-table{width:100%;border-collapse:collapse;font-size:9.5pt;margin-top:6px}
+.sev-table td{padding:12px 10px;border-bottom:1px solid var(--gray-3);vertical-align:middle}
+.sev-table td.d{color:var(--gray-1);line-height:1.8}
+
+/* ── PAGE 5 · Findings summary ────────────────────────────── */
+table.findings{width:100%;border-collapse:collapse;font-size:10pt;margin-top:8px}
+table.findings th{
+  text-align:left;font-size:8pt;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gray-1);font-weight:700;padding:12px 10px;border-bottom:1.5px solid var(--ink);
+}
+table.findings td{padding:17px 10px;border-bottom:1px solid var(--gray-3);vertical-align:top}
+table.findings tr:nth-child(even) td{background:var(--gray-4)}
+table.findings td.id{font-family:var(--mono);font-size:9pt;white-space:nowrap;color:var(--gray-1)}
+table.findings.compact{font-size:9pt}
+table.findings.compact th{padding:8px 10px}
+table.findings.compact td{padding:8px 10px}
+table.findings.compact td.tt{line-height:1.45}
+table.findings td.tt{font-weight:600;line-height:1.6;color:var(--ink)}
+
+/* ── PAGE 6 · Finding detail ──────────────────────────────── */
+.finding-head{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:34px;
+}
+.finding-head .fid{font-family:var(--mono);font-size:9pt;color:var(--gray-1);margin-bottom:14px}
+.finding-head h3{font-size:19pt;font-weight:800;letter-spacing:-.02em;line-height:1.42;max-width:130mm;color:var(--ink)}
+.finding-head .fsub{font-size:11.5pt;font-weight:600;color:var(--gray-1);line-height:1.75;margin-top:16px;max-width:130mm}
+.finding-head .flags{display:flex;gap:8px;flex:none;padding-top:22px}
+
+.fblock{margin-bottom:28px}
+.fblock .fh{
+  font-size:8pt;font-weight:800;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gray-1);margin-bottom:10px;display:flex;align-items:center;gap:8px;
+}
+.fblock .fh::before{content:"";width:10px;height:2px;background:var(--accent)}
+.fblock .fb{font-size:10pt;line-height:1.95;color:var(--body)}
+/* ── 迭代块：元信息行 / 证据块 / 影响表 / 说明框 / 清单（对齐 Babylon 版式） ── */
+.evmeta{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 12px;font-size:8.5pt;color:var(--gray-3)}
+.evmeta .item b{color:var(--ink);font-weight:600}
+.fblock .evidence{margin:0 0 14px}
+.fblock .evidence .elabel{display:block;font-family:var(--mono);font-size:8pt;letter-spacing:.04em;color:var(--accent);margin-bottom:6px}
+table.impact-table{width:100%;border-collapse:collapse;font-size:9pt}
+table.impact-table th{text-align:left;font-size:8pt;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-3);border-bottom:1px solid var(--gray-2);padding:0 8px 5px 0}
+table.impact-table td{padding:6px 8px 6px 0;border-bottom:1px solid var(--gray-1);color:var(--body);line-height:1.7;vertical-align:top}
+table.impact-table td:first-child{color:var(--ink)}
+.fblock .callout{background:var(--callout-bg);border-left:2px solid var(--accent);padding:11px 14px;font-size:9.5pt;line-height:1.85;color:var(--body)}
+ul.checklist{list-style:none;margin:0 0 14px;padding:0}
+ul.checklist li{position:relative;padding-left:20px;font-size:9.5pt;line-height:1.9;color:var(--body)}
+ul.checklist li::before{content:"○";position:absolute;left:0;color:var(--gray-3)}
+ul.checklist li.checked::before{content:"●";color:var(--accent)}
+.page.tight .fblock .callout,.page.tight.xt .fblock .callout{padding:8px 12px;font-size:9pt;line-height:1.75}
+.page.tight ul.checklist li,.page.tight.xt ul.checklist li{line-height:1.7;font-size:9pt}
+code,.code{
+  font-family:var(--mono);font-size:9pt;background:var(--gray-4);
+  padding:1.5px 5px;border-radius:2px;color:var(--ink);
+}
+pre.codeblock{
+  font-family:var(--mono);font-size:9pt;line-height:1.85;
+  background:var(--code-bg);color:var(--code-fg);
+  padding:18px 20px;border-radius:3px;overflow:hidden;margin-top:14px;
+  border-left:2px solid var(--accent);
+  white-space:pre-wrap;word-break:break-all;
+}
+pre.codeblock .ln{color:#565b63;user-select:none}
+
+/* ── PAGE 7 · Disclaimer & contact ────────────────────────── */
+.disclaimer p{font-size:9.5pt;line-height:2.0;color:var(--gray-1);margin-bottom:18px;max-width:160mm}
+.contact{margin-top:44px;border:1px solid var(--gray-3);display:flex}
+.contact .c{flex:1;padding:24px;border-right:1px solid var(--gray-3);font-size:9.5pt;line-height:2.15;color:var(--body)}
+.contact .c:last-child{border-right:none}
+.contact .k{font-size:7.5pt;letter-spacing:.22em;text-transform:uppercase;color:var(--gray-2);margin-bottom:6px}
+.contact .v{font-weight:700;color:var(--ink)}
+.contact .mono{color:var(--gray-1)}
+
+/* optional donation line · keep quieter than the contact block above */
+.donate{
+  margin-top:16px;display:flex;align-items:baseline;gap:14px;
+  font-size:8pt;color:var(--gray-2);
+}
+.donate .k{font-size:7pt;letter-spacing:.22em;text-transform:uppercase}
+.donate .mono{font-size:8pt;color:var(--gray-1);letter-spacing:.02em}
+
+.endmark{
+  position:absolute;bottom:24mm;left:20mm;
+  display:flex;align-items:center;gap:12px;
+  font-size:8pt;letter-spacing:.3em;text-transform:uppercase;color:var(--gray-2);
+}
+.endmark::after{content:"";width:60px;height:1px;background:var(--gray-3)}
+
+/* tight page variants — the filler adds .tight when the prose volume of a
+   fixed page risks overflowing (English text runs ~1.6× Chinese length) */
+.page.tight p.body{font-size:10pt;line-height:1.8;margin-bottom:12px}
+.page.tight h2.section-title{margin-bottom:18px}
+.page.tight .exstats{margin:20px 0 24px}
+.page.tight .exstats .cell{padding:16px 20px 14px}
+.page.tight .callout{margin:18px 0;padding:14px 18px;line-height:1.85}
+.page.tight.xt p.body{font-size:9.5pt;line-height:1.75;margin-bottom:10px}
+.page.tight.xt h2.section-title{margin-bottom:14px}
+.page.tight.xt .exstats{margin:16px 0 18px}
+.page.tight.xt .exstats .cell{padding:12px 16px 10px}
+.page.tight.xt .exstats .num{font-size:24pt}
+.page.tight.xt .callout{margin:14px 0;padding:12px 16px;font-size:9pt;line-height:1.75}
+.page.tight .finding-head{padding-bottom:14px;margin-bottom:24px}
+.page.tight .finding-head h3{font-size:17pt}
+.page.tight .fblock{margin-bottom:18px}
+.page.tight .fblock .fh{margin-bottom:8px}
+.page.tight .fblock .fb{font-size:9.5pt;line-height:1.8}
+.page.tight pre.codeblock{font-size:8.5pt;line-height:1.7;padding:14px 16px;margin-top:10px}
+.page.tight.xt .finding-head h3{font-size:16pt}
+.page.tight.xt .fblock{margin-bottom:12px}
+.page.tight.xt .fblock .fb{font-size:9pt;line-height:1.7}
+.page.tight.xt pre.codeblock{font-size:8pt;line-height:1.6;padding:12px 14px}
+/* continued findings-summary pages (large reports) */
+.cont-head{font-size:13pt;font-weight:700;color:var(--ink);margin:4px 0 18px;display:flex;align-items:center;gap:10px}
+.cont-head::before{content:"";width:14px;height:2px;background:var(--accent)}
+.page.tight ul.method{font-size:9.5pt;line-height:2}
+.page.tight .scope-table{margin:6px 0 20px}
+.page.tight .scope-table td{padding:9px 10px}
+.page.tight h3.block{margin:22px 0 10px}
+.page.tight .sev-table td{padding:9px 10px}
+.page.tight.disclaimer p{font-size:9pt;line-height:1.85;margin-bottom:12px}
+.page.tight .contact{margin-top:28px}
+.page.tight .contact .c{padding:18px 20px;line-height:2}
+.page.tight .donate{margin-top:10px}
+.page.tight .endmark{bottom:20mm}
+
+/* ── theme toggle (screen only) ───────────────────────────── */.theme-toggle{
+  position:fixed;right:24px;bottom:24px;z-index:99;
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.04em;
+  color:#e8e9eb;background:#1a1b1e;border:1px solid rgba(255,255,255,.16);
+  padding:10px 16px;border-radius:999px;cursor:pointer;
+  box-shadow:0 4px 18px rgba(0,0,0,.4);
+  transition:transform .15s ease;
+}
+.theme-toggle:hover{transform:translateY(-2px)}
+.theme-toggle .dot{width:10px;height:10px;border-radius:50%;flex:none}
+:root[data-theme="dark"] .theme-toggle .dot{background:#e9edf3;box-shadow:0 0 8px rgba(233,237,243,.9)}
+:root[data-theme="light"] .theme-toggle .dot{background:#e8930c;box-shadow:0 0 8px rgba(232,147,12,.9)}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ PAGE 1 · COVER · 海上明月 / 海上太阳 ═══════════ -->
+<section class="page cover">
+  <div class="wordmark">
+    <svg class="mark" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+      <circle cx="13" cy="13" r="12" fill="var(--disc)" opacity=".18"/>
+      <circle cx="13" cy="13" r="8.5" fill="var(--disc)"/>
+    </svg>
+    <span class="name">Proof <em>Audit</em></span>
+  </div>
+
+  <div class="meta-top">
+    Security Assessment<br>
+    Report <b>#{{PA-2025-001}}</b><br>
+    {{August 19, 2025}}
+  </div>
+
+  <div class="rule"></div>
+  <div class="titleblock">
+    <div class="label">Smart Contract Security Assessment</div>
+    <h1>{{Project Name}}</h1>
+    <div class="vers">{{Protocol v2.0}}</div>
+    <div class="sub">Audited by <b>Proof Audit</b> &nbsp;·&nbsp; {{Aug 4 – Aug 15, 2025}} &nbsp;·&nbsp; Commit <span class="mono" style="color:var(--cover-ink)">{{a1b2c3d}}</span></div>
+  </div>
+
+  <div class="prep">
+    <div>
+      <div class="k">Prepared for</div>
+      <div class="v">{{Client / Project Team}}</div>
+      <div class="mono">{{contact@project.xyz}}</div>
+    </div>
+    <div>
+      <div class="k">Prepared by</div>
+      <div class="v">{{Lead Auditor}}</div>
+      <div class="mono">{{auditor@proofaudit.io}}</div>
+    </div>
+    <div>
+      <div class="k">Engagement type</div>
+      <div class="v">{{Full Audit / Diff Audit}}</div>
+      <div class="mono">{{2 auditors · 2 weeks}}</div>
+    </div>
+  </div>
+
+  <!-- 封面底部的「海」：页脚式地平线 + 两条极淡波线。
+       无倒影虚线；海不单独配色，全部使用 --cover-ink 低透明度。 -->
+  <svg class="cover-art" viewBox="0 0 1260 192" preserveAspectRatio="xMidYMax meet"
+       xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <!-- 地平线在署名栏正下方，乍看如页脚线 -->
+    <line x1="0" y1="34" x2="1260" y2="34" stroke="var(--cover-ink)" stroke-width="1" opacity=".3"/>
+    <!-- 波线 ×2，极淡 -->
+    <line x1="240" y1="92"  x2="1020" y2="92"  stroke="var(--cover-ink)" stroke-width="1" opacity=".1"/>
+    <line x1="450" y1="148" x2="810"  y2="148" stroke="var(--cover-ink)" stroke-width="1" opacity=".05"/>
+  </svg>
+
+  <div class="confidential">Status · <b>{{Public}}</b></div>
+</section>
+
+<!-- ═══════════ PAGE 2 · DOCUMENT CONTROL & TOC ═══════════ -->
+<section class="page">
+  <div class="runhead"><span class="brand"><svg style="width:11px;height:11px;vertical-align:-1px;margin-right:7px" viewBox="0 0 26 26" fill="none"><path d="M13 1 L24 6 V13 C24 19.5 19.5 24 13 25.5 C6.5 24 2 19.5 2 13 V6 Z" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M8.5 12.6 L11.8 15.9 L17.8 9.6" stroke="var(--accent)" stroke-width="2.8" fill="none"/></svg>Proof <em>Audit</em></span><span>{{Project Name}} — Security Assessment</span><!--HTIP--></div>
+
+  <div class="docctl">
+    <div class="section-num">Document Control</div>
+    <h2 class="section-title">Report Information</h2>
+    <table class="meta">
+      <tr><td class="k">Report ID</td><td class="v mono">{{PA-2025-001}}</td></tr>
+      <tr><td class="k">Project</td><td class="v">{{Project Name}}<span class="mono">{{repository-url}}</span></td></tr>
+      <tr><td class="k">Commit Audited</td><td class="v mono">{{a1b2c3d4e5f6789012345678901234567890abcd}}</td></tr>
+      <tr><td class="k">Audit Period</td><td class="v">{{Aug 4 – Aug 15, 2025}}</td></tr>
+      <tr><td class="k">Auditors</td><td class="v">{{Auditor One}}, {{Auditor Two}}</td></tr>
+      <tr><td class="k">Version History</td><td class="v">v1.0 {{Aug 15, 2025}} — initial report<br>v1.1 {{Aug 19, 2025}} — retest findings, final</td></tr>
+    </table>
+  </div>
+
+  <div class="toc">
+    <div class="section-num" style="margin-bottom:14px">Contents</div>
+    <div class="row"><span class="n">1</span><span class="t">Executive Summary</span><span class="dots"></span><span class="p">3</span></div>
+    <div class="row"><span class="n">2</span><span class="t">Scope &amp; Methodology</span><span class="dots"></span><span class="p">4</span></div>
+    <div class="row"><span class="n">3</span><span class="t">Findings Summary</span><span class="dots"></span><span class="p">5</span></div>
+    <div class="row sub"><span class="n">3.1</span><span class="t">VUL-001 · {{Finding title}}</span><span class="dots"></span><span class="p">6</span></div>
+    <div class="row"><span class="n">4</span><span class="t">Appendix &amp; Disclaimer</span><span class="dots"></span><span class="p">7</span></div>
+  </div>
+
+  <div class="runfoot">
+    <span>© 2025 Proof Audit</span>
+    <span class="mono">{{PA-2025-001}}</span>
+    <span>Page 2 of 7</span>
+  </div>
+</section>
+
+<!-- ═══════════ PAGE 3 · EXECUTIVE SUMMARY ═══════════ -->
+<section class="page">
+  <div class="runhead"><span class="brand"><svg style="width:11px;height:11px;vertical-align:-1px;margin-right:7px" viewBox="0 0 26 26" fill="none"><path d="M13 1 L24 6 V13 C24 19.5 19.5 24 13 25.5 C6.5 24 2 19.5 2 13 V6 Z" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M8.5 12.6 L11.8 15.9 L17.8 9.6" stroke="var(--accent)" stroke-width="2.8" fill="none"/></svg>Proof <em>Audit</em></span><span>1 · Executive Summary</span><!--HTIP--></div>
+
+  <div class="section-num">Section 1</div>
+  <h2 class="section-title">Executive Summary</h2>
+
+  <p class="body">
+    {{Project Name}} engaged Proof Audit to perform a security assessment of {{scope, e.g. “the StakingVault
+    and RewardDistributor smart contracts”}}. The assessment was conducted over {{two weeks}} by {{two}}
+    auditors, combining manual review with static analysis and property-based testing.
+  </p>
+  <p class="body">
+    The codebase was found to be <b>{{generally well-structured}}</b>. We identified
+    <b>{{N}} issues</b> in total: <b>{{1 Critical}}</b>, <b>{{2 High}}</b>, <b>{{3 Medium}}</b> and
+    <b>{{1 Low}}</b>. All Critical and High issues were {{resolved / mitigated}} by the team during the
+    retest phase and are marked <span class="chip low" style="font-size:7.5pt">Resolved</span> in this report.
+  </p>
+
+  <div class="exstats">
+    <div class="cell"><div class="num" style="color:var(--crit)">1</div><div class="lbl">Critical</div></div>
+    <div class="cell"><div class="num" style="color:var(--high)">2</div><div class="lbl">High</div></div>
+    <div class="cell"><div class="num" style="color:var(--med)">3</div><div class="lbl">Medium</div></div>
+    <div class="cell"><div class="num" style="color:var(--low)">1</div><div class="lbl">Low</div></div>
+    <div class="cell"><div class="num">7</div><div class="lbl">Total Findings</div></div>
+  </div>
+
+  <div class="callout">
+    <span class="ct">Key Risk</span>
+    {{One-sentence description of the most important issue and its impact, e.g. “The vault’s share-price
+    rounding could be exploited through donation-style manipulation to drain funds over multiple blocks.”}}
+    This was addressed in commit <span class="mono">{{f00ba12}}</span>.
+  </div>
+
+  <p class="body">
+    <b>Overall assessment:</b> {{The contracts are ready for deployment, contingent on the fixes verified
+    during retest.}} Users of this report should note the residual risks described in Section 2.
+  </p>
+
+  <div class="runfoot">
+    <span>© 2025 Proof Audit</span>
+    <span class="mono">{{PA-2025-001}}</span>
+    <span>Page 3 of 7</span>
+  </div>
+</section>
+
+<!-- ═══════════ PAGE 4 · SCOPE & METHODOLOGY ═══════════ -->
+<section class="page">
+  <div class="runhead"><span class="brand"><svg style="width:11px;height:11px;vertical-align:-1px;margin-right:7px" viewBox="0 0 26 26" fill="none"><path d="M13 1 L24 6 V13 C24 19.5 19.5 24 13 25.5 C6.5 24 2 19.5 2 13 V6 Z" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M8.5 12.6 L11.8 15.9 L17.8 9.6" stroke="var(--accent)" stroke-width="2.8" fill="none"/></svg>Proof <em>Audit</em></span><span>2 · Scope &amp; Methodology</span><!--HTIP--></div>
+
+  <div class="section-num">Section 2</div>
+  <h2 class="section-title">Scope &amp; Methodology</h2>
+
+  <h3 class="block">2.1 &nbsp;In-Scope Contracts</h3>
+  <table class="scope-table">
+    <tr><th>Contract</th><th style="width:64px">Lines</th><th>Address</th></tr>
+    <tr><td class="mono">src/StakingVault.sol</td><td class="mono">412</td><td class="mono">a1b2c3d</td></tr>
+    <tr><td class="mono">src/RewardDistributor.sol</td><td class="mono">238</td><td class="mono">a1b2c3d</td></tr>
+    <tr><td class="mono">src/libraries/ShareMath.sol</td><td class="mono">96</td><td class="mono">a1b2c3d</td></tr>
+  </table>
+
+  <h3 class="block">2.2 &nbsp;Methodology</h3>
+  <ul class="method">
+    <li>Manual line-by-line review of all in-scope source code</li>
+    <li>Static analysis with {{Slither, Mythril}}</li>
+    <li>Property-based fuzzing of {{rounding and share-price invariants}}</li>
+    <li>Adversarial review of privileged roles, upgrade paths and external call surfaces</li>
+    <li>Verification of fixes in a dedicated retest phase</li>
+  </ul>
+
+  <h3 class="block">2.3 &nbsp;Severity Classification</h3>
+  <table class="sev-table">
+    <tr><td style="width:130px"><span class="chip crit">Critical</span></td><td class="d">Direct loss of funds, or broken contract invariants with no viable mitigation.</td></tr>
+    <tr><td><span class="chip high">High</span></td><td class="d">Likely loss of funds under realistic conditions, or severe degradation of core functionality.</td></tr>
+    <tr><td><span class="chip med">Medium</span></td><td class="d">Limited impact requiring specific conditions, or deviations from best practice with security relevance.</td></tr>
+    <tr><td><span class="chip low">Low</span></td><td class="d">Minor issue; minimal direct impact, fix recommended.</td></tr>
+    <tr><td><span class="chip info">Informational</span></td><td class="d">No security impact; observations and hardening suggestions.</td></tr>
+  </table>
+
+  <div class="runfoot">
+    <span>© 2025 Proof Audit</span>
+    <span class="mono">{{PA-2025-001}}</span>
+    <span>Page 4 of 7</span>
+  </div>
+</section>
+
+<!-- ═══════════ PAGE 5 · FINDINGS SUMMARY ═══════════ -->
+<section class="page">
+  <div class="runhead"><span class="brand"><svg style="width:11px;height:11px;vertical-align:-1px;margin-right:7px" viewBox="0 0 26 26" fill="none"><path d="M13 1 L24 6 V13 C24 19.5 19.5 24 13 25.5 C6.5 24 2 19.5 2 13 V6 Z" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M8.5 12.6 L11.8 15.9 L17.8 9.6" stroke="var(--accent)" stroke-width="2.8" fill="none"/></svg>Proof <em>Audit</em></span><span>3 · Findings Summary</span><!--HTIP--></div>
+
+  <div class="section-num">Section 3</div>
+  <h2 class="section-title">Findings Summary</h2>
+
+  <table class="findings">
+    <tr><th style="width:70px">ID</th><th>Title</th><th style="width:100px">Severity</th><th style="width:110px">Status</th></tr>
+    <tr>
+      <td class="id">VUL-001</td>
+      <td class="tt">{{Share-price rounding allows donation-based share inflation}}</td>
+      <td><span class="chip crit">Critical</span></td>
+      <td><span class="chip tag-resolved">Resolved</span></td>
+    </tr>
+    <tr>
+      <td class="id">VUL-002</td>
+      <td class="tt">{{Missing access control on emergency pause}}</td>
+      <td><span class="chip high">High</span></td>
+      <td><span class="chip tag-resolved">Resolved</span></td>
+    </tr>
+    <tr>
+      <td class="id">VUL-003</td>
+      <td class="tt">{{Reward index drifts after fee-on-transfer tokens}}</td>
+      <td><span class="chip high">High</span></td>
+      <td><span class="chip tag-resolved">Resolved</span></td>
+    </tr>
+    <tr>
+      <td class="id">VUL-004</td>
+      <td class="tt">{{Front-running griefing on reward claims}}</td>
+      <td><span class="chip med">Medium</span></td>
+      <td><span class="chip tag-resolved">Resolved</span></td>
+    </tr>
+    <tr>
+      <td class="id">VUL-005</td>
+      <td class="tt">{{Unchecked return value on external call}}</td>
+      <td><span class="chip low">Low</span></td>
+      <td><span class="chip tag-resolved">Resolved</span></td>
+    </tr>
+    <tr>
+      <td class="id">VUL-006</td>
+      <td class="tt">{{Gas optimization notes for hot loops}}</td>
+      <td><span class="chip info">Info</span></td>
+      <td><span class="chip ghost">Acknowledged</span></td>
+    </tr>
+  </table>
+
+  <p class="body" style="margin-top:34px">
+    Each finding below is presented with a description, proof of concept, recommended remediation and the
+    resolution verified during retest. Findings marked <span class="chip ghost" style="font-size:7.5pt">Acknowledged</span>
+    were accepted by the project team without code change.
+  </p>
+
+  <div class="runfoot">
+    <span>© 2025 Proof Audit</span>
+    <span class="mono">{{PA-2025-001}}</span>
+    <span>Page 5 of 7</span>
+  </div>
+</section>
+
+<!-- ═══════════ PAGE 6 · FINDING DETAIL (copy this block per finding) ═══════════ -->
+<section class="page">
+  <div class="runhead"><span class="brand"><svg style="width:11px;height:11px;vertical-align:-1px;margin-right:7px" viewBox="0 0 26 26" fill="none"><path d="M13 1 L24 6 V13 C24 19.5 19.5 24 13 25.5 C6.5 24 2 19.5 2 13 V6 Z" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M8.5 12.6 L11.8 15.9 L17.8 9.6" stroke="var(--accent)" stroke-width="2.8" fill="none"/></svg>Proof <em>Audit</em></span><span>3.1 · VUL-001</span><!--HTIP--></div>
+
+  <div class="finding-head">
+    <div>
+      <div class="fid">VUL-001 · src/StakingVault.sol · L212–228</div>
+      <h3>{{Share-price rounding allows donation-based share inflation}}</h3>
+    </div>
+    <div class="flags">
+      <span class="chip crit">Critical</span>
+      <span class="chip tag-resolved">Resolved</span>
+    </div>
+  </div>
+
+  <div class="fblock">
+    <div class="fh">Description</div>
+    <div class="fb">
+      {{Explain the root cause. E.g. The vault computes shares as <code>assets * totalSupply / totalAssets</code>.
+      Because division rounds down, an attacker can donate a small amount of the underlying asset to the vault,
+      inflating <code>totalAssets</code> and causing the next depositor to receive zero shares while their
+      assets are credited to existing shareholders.}}
+    </div>
+  </div>
+
+  <div class="fblock">
+    <div class="fh">Proof of Concept</div>
+    <pre class="codeblock"><span class="ln">1</span>  // attacker donates 1 wei directly
+<span class="ln">2</span>  asset.transfer(address(vault), 1);
+<span class="ln">3</span>  // victim deposit rounds down to 0 shares
+<span class="ln">4</span>  uint256 shares = vault.deposit(1e18, victim); <span class="ln">// returns 0</span></pre>
+  </div>
+
+  <div class="fblock">
+    <div class="fh">Recommendation</div>
+    <div class="fb">
+      {{Mitigation. E.g. Mint an initial dead-amount of shares on deployment, or use the
+      “virtual shares / assets” pattern (ERC-4626 inflation-attack mitigation), so that share price
+      manipulation is no longer profitable.}}
+    </div>
+  </div>
+
+  <div class="fblock">
+    <div class="fh">Resolution</div>
+    <div class="fb">
+      {{Fixed in commit <span class="mono">f00ba12</span> by adopting OpenZeppelin’s ERC-4626 virtual-offset
+      implementation. Verified during retest on {{Aug 19, 2025}}.}}
+    </div>
+  </div>
+
+  <div class="runfoot">
+    <span>© 2025 Proof Audit</span>
+    <span class="mono">{{PA-2025-001}}</span>
+    <span>Page 6 of 7</span>
+  </div>
+</section>
+
+<!-- ═══════════ PAGE 7 · DISCLAIMER & CONTACT ═══════════ -->
+<section class="page disclaimer">
+  <div class="runhead"><span class="brand"><svg style="width:11px;height:11px;vertical-align:-1px;margin-right:7px" viewBox="0 0 26 26" fill="none"><path d="M13 1 L24 6 V13 C24 19.5 19.5 24 13 25.5 C6.5 24 2 19.5 2 13 V6 Z" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M8.5 12.6 L11.8 15.9 L17.8 9.6" stroke="var(--accent)" stroke-width="2.8" fill="none"/></svg>Proof <em>Audit</em></span><span>4 · Appendix &amp; Disclaimer</span><!--HTIP--></div>
+
+  <div class="section-num">Section 4</div>
+  <h2 class="section-title">Disclaimer</h2>
+
+  <p>
+    This report is provided for informational purposes only and reflects the state of the audited codebase
+    at the commit identified on page 2. It does not constitute financial, legal or investment advice, nor a
+    guarantee that the reviewed contracts are free of vulnerabilities.
+  </p>
+  <p>
+    Security auditing is a time-bounded review process and cannot exclude the possibility of undiscovered
+    issues. Proof Audit assumes no liability for any loss arising from the use of the audited software.
+    Contracts deployed after the audit commit are outside the scope of this report.
+  </p>
+
+  <div class="contact">
+    <div class="c">
+      <div class="k">Proof Audit</div>
+      <div class="v">Smart Contract Security</div>
+      <div class="mono">hello@proofaudit.io</div>
+    </div>
+    <div class="c">
+      <div class="k">Website</div>
+      <div class="v">proofaudit.io</div>
+      <div class="mono">PGP {{0xA1B2…}}</div>
+    </div>
+    <div class="c">
+      <div class="k">Report</div>
+      <div class="v mono" style="font-size:8.5pt">{{PA-2025-001}}</div>
+      <div class="mono">Issued {{Aug 19, 2025}}</div>
+    </div>
+  </div>
+
+  <div class="donate">
+    <span class="k">Donations · Optional</span>
+    <span class="mono">{{0x71C7656EC7ab88b098defB751B7401B5f6d8976F}}</span>
+  </div>
+
+  <div class="endmark">End of Report</div>
+
+  <div class="runfoot">
+    <span>© 2025 Proof Audit</span>
+    <span class="mono">{{PA-2025-001}}</span>
+    <span>Page 7 of 7</span>
+  </div>
+</section>
+
+<button class="theme-toggle" onclick="toggleTheme()" aria-label="Switch color theme">
+  <span class="dot"></span>
+  <span id="themeLabel">暗色 · 海上明月</span>
+</button>
+
+<script>
+(function(){
+  var saved = null;
+  try{ saved = localStorage.getItem('proof-audit-theme'); }catch(e){}
+  if(saved === 'light' || saved === 'dark'){ setTheme(saved); }
+})();
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('themeLabel').textContent =
+    t === 'light' ? '亮色 · 海上太阳' : '暗色 · 海上明月';
+  try{ localStorage.setItem('proof-audit-theme', t); }catch(e){}
+}
+function toggleTheme(){
+  var cur = document.documentElement.getAttribute('data-theme');
+  setTheme(cur === 'light' ? 'dark' : 'light');
+}
+</script>
+
+</body>
+</html>
