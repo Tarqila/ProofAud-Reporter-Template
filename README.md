@@ -1,4 +1,4 @@
-# ProofAud-Reporter-template
+# ProofAud-Reporter-Template
 
 把 Markdown 格式的智能合约审计内容，填充进 **Proof Audit** 品牌 HTML 模板，并渲染为 A4 尺寸的 PDF 报告。
 

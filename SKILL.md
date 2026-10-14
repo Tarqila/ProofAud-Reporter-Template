@@ -2,7 +2,7 @@
 name: proof-audit-report-builder
 description: Turn a Markdown smart-contract audit report (findings, scope, methodology, appendices) into a finished Proof Audit branded HTML/PDF report. Use when the user provides audit content in .md form and asks to 填充/排版/生成 the Proof Audit 审计报告模板, produce the 双主题 (海上明月/海上太阳) report, or batch-convert audit findings into the branded layout.
 version: 1.0.0
-homepage: https://github.com/Tarqila/ProofAud-Reporter-template
+homepage: https://github.com/Tarqila/ProofAud-Reporter-Template
 ---
 
 # Proof Audit Report Builder
